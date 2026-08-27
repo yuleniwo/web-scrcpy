@@ -12,8 +12,21 @@ class VideoParser {
         this.onNaluCallback = onNaluCallback;
         this.hasSentSpsPps = false;
     }
+	
+	reset() {
+		this.buffer = new Uint8Array(0);
+        this.name = null;
+        this.width = null;
+        this.height = null;
+        this.hasKeyFrame = null;
+        this.sps = null;
+        this.pps = null;
+        this.mimeCodec = null;
+        this.hasSentSpsPps = false;
+	}
 
     appendData(data) {
+		if(!data || 0 === data.length) return;
         const newBuffer = new Uint8Array(this.buffer.length + data.length);
         newBuffer.set(this.buffer, 0);
         newBuffer.set(data, this.buffer.length);
@@ -130,7 +143,7 @@ class VideoParser {
             if (this.onNaluCallback) {
                 this.onNaluCallback({
                     type: 'init',
-                    data: { "width:": this.width, " height:": this.height, "pps": this.pps, "sps": this.sps }
+                    data: { "width": this.width, " height": this.height, "pps": this.pps, "sps": this.sps }
                 });
             }
             this.pps = null;

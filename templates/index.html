@@ -1,223 +1,316 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="/static/css/font-awesome.min.css" rel="stylesheet">
-    <title>Web server for scrcpy</title>
-    <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background-color: #333;
-        }
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="/static/css/font-awesome.min.css" rel="stylesheet">
+	<title>Web server for scrcpy</title>
+	<style>
+		body {
+			margin: 0;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			background-color: #333;
+		}
 
-        .video-wrapper {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-        }
+		.video-wrapper {
+			flex: 1;
+			position: relative;
+			overflow: hidden;
+		}
 
-        video {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-            background: black;
-        }
+		video {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			max-width: 100%;
+			max-height: 100%;
+			width: auto;
+			height: auto;
+			background: black;
+		}
 
-        #status {
-            font-family: Arial, sans-serif;
-            color: #333;
-        }
+		#status {
+			font-family: Arial, sans-serif;
+			font-size: 18px;
+			color: red;
+			background-color: white;
+			position: absolute; /* 使用绝对定位来覆盖视频 */
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%); /* 调整位置使其居中 */
+			z-index: 9999;
+		}
 
-        .icon-container {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-        }
+		.icon-container {
+			display: flex;
+			gap: 10px;
+			width: 100%;
+		}
 
-        .icon {
-            padding: 6px;
-            font-size: 18px;
-            cursor: pointer;
-            color: #eee;
-            transition: color 0.3s ease;
-        }
+		.icon {
+			padding: 6px;
+			font-size: 18px;
+			cursor: pointer;
+			color: #eee;
+			transition: color 0.3s ease;
+		}
 
-        .icon:hover {
-            color: #007BFF;
-        }
+		.icon:hover {
+			color: #007BFF;
+		}
 
-        .icon-container i:nth-child(4) {
-            margin-left: auto;
-        }
-    </style>
-    <script src="/static/js/socket.io.js"></script>
-    <script src="/static/js/input.js"></script>
-    <script src="/static/js/exp-golomb.js"></script>
-    <script src="/static/js/h264-sps-parser.js"></script>
-    <script src="/static/js/video_parser.js"></script>
+		.icon-container i:nth-child(4) {
+			margin-left: auto;
+		}
+	</style>
+	<script src="/static/js/socket.io.js"></script>
+	<script src="/static/js/input.js"></script>
+	<script src="/static/js/exp-golomb.js"></script>
+	<script src="/static/js/h264-sps-parser.js"></script>
+	<script src="/static/js/video_parser.js"></script>
+	<script src="/static/js/audio_parser.js"></script>
 </head>
 
 <body>
-    <p id="status" style="display: none;">connecting to device...</p>
-    <div class="icon-container">
-        <i id="power-icon" class="fa-solid fa-power-off icon"></i>
-        <i id="volume-down-icon" class="fa-solid fa-volume-down icon"></i>
-        <i id="volume-up-icon" class="fa-solid fa-volume-up icon"></i>
-        <i id="back-icon" class="fa-solid fa-arrow-left icon"></i>
-        <i id="home-icon" class="fa-solid fa-house icon"></i>
-        <i id="menu-icon" class="fa-solid fa-bars icon"></i>
-    </div>
-    <div class="video-wrapper">
-        <video id="player" autoplay muted webkit-playsinline playsinline x5-playsinline></video>
-    </div>
-    <script src="/static/js/jmuxer.min.js"></script>
-    <script>
-        const videoElement = document.getElementById('player');
-        const jmuxer = new JMuxer({
-            node: 'player',
-            mode: 'video',
-            flushingTime: 0,
-            fps: 60,
-            clearBuffer: true,
-            onReady: () => {
-                document.getElementById('status').textContent = 'MSE done, waiting for data...';
-                if (videoElement) {
-                    videoElement.controls = false;
-                    videoElement.style.cssText = `
-                        -webkit-media-controls: none !important;
-                        -webkit-media-controls-enclosure: none !important;
-                        -webkit-media-controls-panel: none !important;
-                        -webkit-media-controls-play-button: none !important;
-                        -webkit-media-controls-timeline: none !important;
-                        -webkit-media-controls-current-time-display: none !important;
-                        -webkit-media-controls-time-remaining-display: none !important;
-                        -webkit-media-controls-mute-button: none !important;
-                        -webkit-media-controls-volume-slider: none !important;
-                        -webkit-media-controls-fullscreen-button: none !important;
-                        -moz-controls: none !important;
-                        -ms-media-controls: none !important;
-                    `;
-                }
-            },
-            onError: (err) => {
-                document.getElementById('status').textContent = 'MSE Error: ' + err.message;
-            }
-        });
+	<p id="status" style="display: none;">connecting to device...</p>
+	<div class="icon-container">
+		<i id="power-icon" class="fa-solid fa-power-off icon"></i>
+		<i id="volume-down-icon" class="fa-solid fa-volume-down icon"></i>
+		<i id="volume-up-icon" class="fa-solid fa-volume-up icon"></i>
+		<i id="back-icon" class="fa-solid fa-arrow-left icon"></i>
+		<i id="home-icon" class="fa-solid fa-house icon"></i>
+		<i id="menu-icon" class="fa-solid fa-bars icon"></i>
+	</div>
+	<div class="video-wrapper">
+		<video id="player" autoplay muted webkit-playsinline playsinline x5-playsinline></video>
+	</div>
+	<!-- hidden audio element with its own MSE pipeline, independent from video -->
+	<audio id="audio-player" autoplay style="display:none;"></audio>
+	<!-- shown only if browser blocks audio autoplay -->
+	<div id="audio-hint" style="display:none;position:fixed;bottom:12px;right:12px;
+		background:rgba(0,0,0,.6);color:#fff;padding:6px 12px;border-radius:4px;
+		font-family:Arial,sans-serif;font-size:13px;cursor:pointer;z-index:999;">
+		🔇点击以激活音频
+	</div>
+	<script src="/static/js/jmuxer.min.js"></script>
+	<script>
+		const videoElement = document.getElementById('player');
+		// Video pipeline — independent from audio, restores original behavior
+		const jmuxer = new JMuxer({
+			node: 'player',
+			mode: 'video',
+			flushingTime: 0,
+			fps: 60,
+			clearBuffer: true,
+			onReady: () => {
+				document.getElementById('status').textContent = 'MSE done, waiting for data...';
+				if (videoElement) {
+					videoElement.controls = false;
+					videoElement.style.cssText = `
+						-webkit-media-controls: none !important;
+						-webkit-media-controls-enclosure: none !important;
+						-webkit-media-controls-panel: none !important;
+						-webkit-media-controls-play-button: none !important;
+						-webkit-media-controls-timeline: none !important;
+						-webkit-media-controls-current-time-display: none !important;
+						-webkit-media-controls-time-remaining-display: none !important;
+						-webkit-media-controls-mute-button: none !important;
+						-webkit-media-controls-volume-slider: none !important;
+						-webkit-media-controls-fullscreen-button: none !important;
+						-moz-controls: none !important;
+						-ms-media-controls: none !important;
+					`;
+				}
+			},
+			onError: (err) => {
+				document.getElementById('status').textContent = 'MSE Error: ' + err.message;
+			}
+		});
+		
+		// Audio pipeline — separate <audio> element so video is never blocked by audio state
+		const audioElement = document.getElementById('audio-player');
+		const jmuxerAudio = new JMuxer({
+			node: 'audio-player',
+			mode: 'audio',
+			flushingTime: 0,
+			fps: 60,
+			clearBuffer: true,
+			onError: (err) => { console.error('Audio MSE error:', err); }
+		});
 
-        const socket = io({
-            reconnection: false,
-            autoConnect: true
-        });
+		// Show fallback hint if browser blocks audio autoplay
+		const audioHint = document.getElementById('audio-hint');
+		audioHint.addEventListener('click', () => {
+			audioElement.play().then(() => { audioHint.style.display = 'none'; });
+		});
 
-        var input = null;
-        function initInput(width, height) {
-            function input_data_cb(data) {
-                socket.emit('control_data', data);
-            }
+		const socket = io({
+			reconnection: true,
+			reconnectionAttempts: 5, // 尝试重连的次数
+			reconnectionDelay: 2000, // 重新连接的延迟时间，单位毫秒，将会指数增加
+			reconnectionDelayMax: 60000, // 重新连接延迟的最大值
+			timeout: 2000, // 尝试连接的超时时间，单位毫秒
+			autoConnect: true
+		});
 
-            input = new ScrcpyInput(input_data_cb, videoElement, width, height, false);
+		let input = null;
+		function initInput(width, height) {
+			if(null == input) {
+				input = new ScrcpyInput((data) => {
+						socket.emit('control_data', data);
+					}, videoElement, width, height, false);
+				
+				const powerIcon = document.getElementById('power-icon');
+				const volumeDownIcon = document.getElementById('volume-down-icon');
+				const volumeUpIcon = document.getElementById('volume-up-icon');
+				const backUpIcon = document.getElementById('back-icon');
+				const homeUpIcon = document.getElementById('home-icon');
+				const menuUpIcon = document.getElementById('menu-icon');
 
-            const powerIcon = document.getElementById('power-icon');
-            const volumeDownIcon = document.getElementById('volume-down-icon');
-            const volumeUpIcon = document.getElementById('volume-up-icon');
-            const backUpIcon = document.getElementById('back-icon');
-            const homeUpIcon = document.getElementById('home-icon');
-            const menuUpIcon = document.getElementById('menu-icon');
+				let isScreenOn = true;
+				let powerIconTick = 0;
+				
+				let powerIconTouchStart = (event) => {
+					if("touchstart" == event.type)
+						event.preventDefault();
+					input.sendSetDisplayPower(1);
+					powerIconTick = Date.now();
+				};
+				
+				let powerIconTouchEnd = (event) => {
+					if(Date.now() - powerIconTick < 3000) { // screen on/off
+						if(isScreenOn) {
+							isScreenOn = false;
+							input.sendSetDisplayPower(0);
+						} else isScreenOn = true;
+					} else {
+						//input.sendKeyCode(event, 0, 26);
+					}
+				};
+				
+				powerIcon.addEventListener('mousedown', powerIconTouchStart);
+				powerIcon.addEventListener('mouseup', powerIconTouchEnd);
+				powerIcon.addEventListener('touchstart', powerIconTouchStart, {passive: false});
+				powerIcon.addEventListener('touchend', powerIconTouchEnd);
 
-            powerIcon.addEventListener('mousedown', function () {
-                input.screen_on_off(0);
-            });
-            powerIcon.addEventListener('mouseup', function () {
-                input.screen_on_off(1);
-            });
+				backUpIcon._sendData = function(action) {
+					input.sendBackOrScreenOn(action)
+				};
+				
+				let kc_btn = {25: volumeDownIcon, 24: volumeUpIcon, 
+					4: backUpIcon, 3: homeUpIcon, 187: menuUpIcon}; // keycode -> button
+				Object.entries(kc_btn).forEach(([kc, button]) => {
+					button._key_code = kc;
+					let btnTouchStart = (event) => {
+						if("touchstart" == event.type)
+							event.preventDefault();
+						let ele = event.target;
+						if(null == ele._sendData)
+							input.sendKeyCode(event, 0, ele._key_code);
+						else ele._sendData(0);
+					};
+					
+					let btnTouchEnd = (event) => {
+						let ele = event.target;
+						if(null == ele._sendData)
+							input.sendKeyCode(event, 1, ele._key_code);
+						else ele._sendData(1);
+					};
+					
+					button.addEventListener('mousedown', btnTouchStart);
+					button.addEventListener('touchstart', btnTouchStart, {passive: false});
+					button.addEventListener('mouseup', btnTouchEnd);
+					button.addEventListener('touchend', btnTouchEnd);
+				});	
+			} else input.reset(width, height);
+			input.sendSetDisplayPower(0); // 关闭屏幕显示（非锁屏）
+			//setTimeout(() => {input.sendResetVideo();}, 500)
+		}
 
-            volumeDownIcon.addEventListener('mousedown', (event) => {
-                input.snedKeyCode(event, 0, 25);
-            });
-            volumeDownIcon.addEventListener('mouseup', (event) => {
-                input.snedKeyCode(event, 1, 25);
-            });
+		const parser = new VideoParser(({ type, data }) => {
+			if (type === 'nalu') {
+				jmuxer.feed({
+					video: data
+				});
+			} else if (type === 'init') {
+				jmuxer.feed({
+					video: data["sps"]
+				});
+				jmuxer.feed({
+					video: data["pps"]
+				});
+			} else if (type === 'screen_size') {
+				initInput(data["width"], data["height"]);
+				input.sendResetVideo();
+			} else if (type === 'size_change') {
+				if (input) {
+					input.resizeScreen(data["width"], data["height"]);
+				}
+			}
+		});
+		
+		let audioPlayStarted = false;
+		const audioParser = new AudioParser((adtsFrame) => {
+			jmuxerAudio.feed({ audio: adtsFrame });
+			// Trigger play on first frame — by this point the user has connected so
+			// the browser should honour the play() request.
+			if (!audioPlayStarted) {
+				audioPlayStarted = true;
+				audioElement.play().catch(() => {
+					// Browser blocked autoplay: show clickable hint
+					audioHint.style.display = 'block';
+				});
+			}
+		});
 
-            volumeUpIcon.addEventListener('mousedown', (event) => {
-                input.snedKeyCode(event, 0, 24);
-            });
-            volumeUpIcon.addEventListener('mouseup', (event) => {
-                input.snedKeyCode(event, 1, 24);
-            });
+		socket.on('audio_data', (data) => {
+			audioParser.appendData(new Uint8Array(data));
+		});
+		
+		socket.on('connect', () => {
+			console.log('### socket connected');
+			let stat = document.getElementById('status');
+			stat.textContent = '';
+			stat.style.display = 'none';
+		});
+		
+		socket.on('disconnect', () => {
+			console.log('*** socket disconnected');
+			let stat = document.getElementById('status');
+			stat.textContent = '连接已中断！！！';
+			stat.style.display = '';
+			parser.reset();
+			audioParser.reset();
+		});
+		
+		socket.on('connect_error', () => {
+			let stat = document.getElementById('status');
+			stat.textContent = '连接失败！！！';
+			stat.style.display = '';
+		});
 
-            backUpIcon.addEventListener('mousedown', (event) => {
-                input.snedKeyCode(event, 0, 4);
-            });
-            backUpIcon.addEventListener('mouseup', (event) => {
-                input.snedKeyCode(event, 1, 4);
-            });
-            homeUpIcon.addEventListener('mousedown', (event) => {
-                input.snedKeyCode(event, 0, 3);
-            });
-            homeUpIcon.addEventListener('mouseup', (event) => {
-                input.snedKeyCode(event, 1, 3);
-            });
-            menuUpIcon.addEventListener('mousedown', (event) => {
-                input.snedKeyCode(event, 0, 187);
-            });
-            menuUpIcon.addEventListener('mouseup', (event) => {
-                input.snedKeyCode(event, 1, 187);
-            });
-        }
+		socket.on('video_data', (data) => {
+			const newData = new Uint8Array(data);
+			parser.appendData(newData);
+		});
+		
+		socket.on('scpy_stop', (data) => {
+			console.log('scpy stop. need reset parser...');
+			parser.reset();
+			audioParser.reset();
+		});
 
-        const parser = new VideoParser(({ type, data }) => {
-            if (type === 'nalu') {
-                jmuxer.feed({
-                    video: data
-                });
-            } else if (type === 'init') {
-                jmuxer.feed({
-                    video: data["sps"]
-                });
-                jmuxer.feed({
-                    video: data["pps"]
-                });
-            } else if (type === 'screen_size') {
-                initInput(data["width"], data["height"]);
-            } else if (type === 'size_change') {
-                if (input) {
-                    input.resizeScreen(data["width"], data["height"]);
-                }
-            }
-        });
-
-        socket.on('video_data', (data) => {
-            const newData = new Uint8Array(data);
-            parser.appendData(newData);
-        });
-
-        socket.on('connect', () => {
-            document.getElementById('status').textContent = 'connected, receiving video data...';
-        });
-
-        socket.addEventListener('close', () => {
-            document.getElementById('status').textContent = 'connect closed, please refresh the page to reconnect';
-        });
-
-        socket.addEventListener('error', (error) => {
-            document.getElementById('status').textContent = 'websocket error: ' + error.message;
-        });
-
-        window.addEventListener('beforeunload', () => {
-            socket.disconnect();
-        });
-    </script>
+		window.addEventListener('beforeunload', () => {
+			socket.disconnect();
+		});
+		
+		document.addEventListener('contextmenu', (event) => {
+			event.preventDefault();
+		});
+	</script>
 </body>
-
 </html>
