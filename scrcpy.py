@@ -69,7 +69,14 @@ class Scrcpy:
                 is_ctrl_c = True
         if is_ctrl_c:
             self.stop = True
+        self.video_socket_shutdown()
         print("Scrcpy: Server stopped")
+
+    def video_socket_shutdown(self):
+        try:
+            self.video_socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
 
     def receive_video_data(self):
         print("Scrcpy: Receiving video data (H.264)...")
@@ -153,10 +160,7 @@ class Scrcpy:
         with self.lock:
             print("Scrcpy: Stopping Scrcpy")
             self.stop = True
-            try:
-                self.video_socket.shutdown(socket.SHUT_RDWR)
-            except:
-                pass
+            self.video_socket_shutdown()
             try:
                 self.control_socket.shutdown(socket.SHUT_RDWR)
             except:

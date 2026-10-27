@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, Response, send_from_directory
 from flask_socketio import SocketIO, emit, send
+from werkzeug.serving import WSGIRequestHandler
 from scrcpy import Scrcpy
 import argparse
 import base64
@@ -37,6 +38,11 @@ class ScrcpyApp:
 
     def _register_routes(self):
         """注册 HTTP 路由"""
+        @self.app.before_request
+        def set_server_header():
+            WSGIRequestHandler.server_version = 'web'
+            WSGIRequestHandler.sys_version = 'scrcpy'
+
         @self.app.route('/')
         def index():
             if not self.authenticate_user():
@@ -251,17 +257,20 @@ class ScrcpyApp:
     def delayed_scrcpy_restart(self):
         """延迟重启 scrcpy"""
         print('ScrcpyApp: scrcpy restart')
-        with self.state_lock:
-            self.scpy_ctx = Scrcpy()
-            if self.scpy_ctx.scrcpy_start(self.on_video_data, 
-                    self.on_audio_data, self.on_scpy_stop, 
-                    self.args.video_bit_rate):
-                print("ScrcpyApp: scrcpy restarted successfully.")
+        with self.state_lock, self.conns_lock:
+            if len(self.clients) > 0:
+                self.scpy_ctx = Scrcpy()
+                if self.scpy_ctx.scrcpy_start(self.on_video_data, 
+                        self.on_audio_data, self.on_scpy_stop, 
+                        self.args.video_bit_rate):
+                    print("ScrcpyApp: scrcpy restarted successfully.")
+                else:
+                    self.scpy_ctx = None
+                    self.tmr_restart_scpy = threading.Timer(10.0, self.delayed_scrcpy_restart)
+                    self.tmr_restart_scpy.start()
+                    print("ScrcpyApp: scrcpy start failed.")
             else:
-                self.scpy_ctx = None
-                self.tmr_restart_scpy = threading.Timer(10.0, self.delayed_scrcpy_restart)
-                self.tmr_restart_scpy.start()
-                print("ScrcpyApp: scrcpy start failed.")
+                print("ScrcpyApp: No client, no need to restart scrcpy.")
 
     def signal_handler(self, sig, frame):
         """处理 Ctrl+C 信号"""
